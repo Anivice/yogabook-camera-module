@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash  -x
 set -euo pipefail
 
 EXPECTED_RELEASE='7.2.4-200.fc44.x86_64'
@@ -123,7 +123,7 @@ git -C "$SRC_DIR" commit -qm "Linux $UPSTREAM_VERSION camera subset"
 # Split and decode the upstream review mbox.  Apply only code/header paths
 # required for the external modules; MAINTAINERS and in-tree Kconfig/Makefile
 # registration are intentionally irrelevant to an OOT build.
-git mailsplit -d4 -o "$MAIL_DIR" "$SERIES_MBOX" >/dev/null
+git mailsplit -d4 -o"$MAIL_DIR" "$SERIES_MBOX" >/dev/null
 mapfile -t mails < <(find "$MAIL_DIR" -maxdepth 1 -type f -printf '%f\n' | sort)
 [[ "${#mails[@]}" == 16 ]] || fatal "git mailsplit produced ${#mails[@]} messages, expected 16"
 
