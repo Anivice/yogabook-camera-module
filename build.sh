@@ -20,6 +20,7 @@ DIFF_DIR="$ROOT_DIR/.work/yogabook-v7-diffs"
 ARCHIVE="$CACHE_DIR/linux-$UPSTREAM_VERSION.tar.xz"
 SERIES_MBOX="$CACHE_DIR/yogabook-camera-v7.mbox"
 X91F_PATCH="$ROOT_DIR/patches/0001-yb1-x91f-dmi.patch"
+NOTIFIER_PATCH="$ROOT_DIR/patches/0002-atomisp-notifier-lifecycle-backport.patch"
 
 fatal() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 info()  { printf '==> %s\n' "$*"; }
@@ -43,6 +44,7 @@ fi
     fatal "$KDIR/Module.symvers is missing; modpost cannot validate Fedora's exported symbols/CRCs"
 [[ -r "$KDIR/.config" ]] || fatal "$KDIR/.config is missing"
 [[ -r "$X91F_PATCH" ]] || fatal "$X91F_PATCH is missing"
+[[ -r "$NOTIFIER_PATCH" ]] || fatal "$NOTIFIER_PATCH is missing"
 
 mkdir -p "$CACHE_DIR" "$OUT_DIR" "$LOG_DIR" "$ROOT_DIR/.work"
 rm -rf "$MAIL_DIR" "$DIFF_DIR"
@@ -210,6 +212,25 @@ git -C "$SRC_DIR" add -A
 git -C "$SRC_DIR" diff --cached --check
 git -C "$SRC_DIR" diff --cached --binary > "$LOG_DIR/yogabook-v7-plus-x91f.diff"
 
+# Linux 7.2.4 registers AtomISP's V4L2 async notifier but does not unregister
+# and clean it up on every teardown path.  The local patch is a narrowly
+# re-contextualized backport of the upstream notifier-lifecycle fix.  Apply it
+# explicitly here; merely shipping the patch file is not sufficient.
+info "applying the AtomISP async-notifier lifecycle backport"
+git -C "$SRC_DIR" apply --check "$NOTIFIER_PATCH" || \
+    fatal "local notifier lifecycle patch no longer matches the verified v7+X91F result"
+git -C "$SRC_DIR" apply "$NOTIFIER_PATCH"
+grep -Fq 'v4l2_async_nf_unregister(&isp->notifier);' \
+    "$SRC_DIR/drivers/staging/media/atomisp/pci/atomisp_v4l2.c" || \
+    fatal "AtomISP notifier unregister fix was not applied"
+grep -Fq 'v4l2_async_nf_cleanup(&isp->notifier);' \
+    "$SRC_DIR/drivers/staging/media/atomisp/pci/atomisp_v4l2.c" || \
+    fatal "AtomISP notifier cleanup fix was not applied"
+
+git -C "$SRC_DIR" add -A
+git -C "$SRC_DIR" diff --cached --check
+git -C "$SRC_DIR" diff --cached --binary > "$LOG_DIR/yogabook-v7-plus-local-fixes.diff"
+
 # ---- OOT-only build adaptations ------------------------------------------------
 # The v7 header changes struct ipu_sensor.  Fedora's prepared tree still has the
 # stock header, so the two users of <media/ipu-bridge.h> must include our local,
@@ -295,7 +316,7 @@ for ko in "$OUT_DIR"/*.ko; do
         fatal "$(basename "$ko") vermagic starts with '$vermagic', expected '$EXPECTED_RELEASE'"
 done
 
-printf '\nSUCCESS: Yoga Book v7 + explicit X91F external-module build completed.\n'
+printf '\nSUCCESS: Yoga Book v7 + X91F + notifier-lifecycle external-module build completed.\n'
 printf 'Modules: %s\n' "$OUT_DIR"
-printf 'Source diff: %s\n' "$LOG_DIR/yogabook-v7-plus-x91f.diff"
+printf 'Source diff: %s\n' "$LOG_DIR/yogabook-v7-plus-local-fixes.diff"
 printf 'Next: sudo %s/load-test.sh\n' "$ROOT_DIR"
