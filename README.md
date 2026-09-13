@@ -89,6 +89,11 @@ sudo ./unload.sh
 ```
 
 That removes the OOT stack and restores Fedora's `intel_atomisp2_pm` PCI owner.
+The teardown order is intentional: `wv517s`, `ov8858`, and `ov2740` are removed before
+`atomisp`. V4L2 async subdevice unregister may call the managing notifier's `unbind`
+callback, so the AtomISP module that owns that callback table must remain resident until
+the sensor/lens subdevices are gone. The loader uses the same safe order when replacing
+an already-loaded test stack.
 
 ## What success should look like
 
@@ -153,3 +158,9 @@ can be overridden, for example `FPS=25 ./tools/ffplay-yogabook.sh 0`.
 `build.sh` after the verified v7 series and X91F DMI addition.  This fixes the AtomISP
 V4L2 async notifier teardown path so unloading/reloading the OOT driver does not leave a
 notifier linked into the V4L2 core after its owning AtomISP allocation has been freed.
+
+The scripts additionally tear down the async leaf subdevices before unloading AtomISP.
+This is required even as defensive ordering around older/pre-fix modules: sensor removal
+calls `v4l2_async_unregister_subdev()`, which may invoke AtomISP's notifier callbacks.
+If a V4L2-async oops has already happened in the current boot, `load-test.sh` and
+`unload.sh` refuse further camera-stack changes; reboot first.

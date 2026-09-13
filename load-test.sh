@@ -25,6 +25,10 @@ for ko in "$ATOMISP_KO" "$GMIN_KO" "$IPU_KO" "$OV2740_KO" "$OV8858_KO" "$WV517S_
 done
 mkdir -p "$LOG_DIR"
 
+if dmesg 2>/dev/null | grep -Eq 'RIP: .*v4l2_async_(unbind_subdev_one|__v4l2_async_nf_register)'; then
+    fatal "this boot has already taken a V4L2-async camera oops; reboot before unloading/reloading the camera stack"
+fi
+
 product="$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)"
 case "$product" in
     'Lenovo YB1-X91F'|'Lenovo YB1-X91L') ;;
@@ -45,7 +49,10 @@ DEV="/sys/bus/pci/devices/$BDF"
 [[ -d "$DEV" ]] || fatal "PCI sysfs device $DEV missing"
 
 info "removing any previous phase-1/phase-2 camera modules"
-for mod in atomisp wv517s ov8858 ov2740 atomisp_gmin_platform ipu_bridge; do
+# Keep AtomISP resident until every async sensor/lens subdevice has
+# unregistered. v4l2_async_unregister_subdev() may call the managing
+# notifier's ->unbind callback, whose ops table lives in atomisp.ko.
+for mod in wv517s ov8858 ov2740 atomisp atomisp_gmin_platform ipu_bridge; do
     if loaded "$mod"; then
         info "removing $mod"
         modprobe -r "${mod//_/-}" 2>/dev/null || rmmod "${mod//-/_}" || \
