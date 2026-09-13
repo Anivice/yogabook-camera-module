@@ -1,0 +1,21 @@
+Pinned upstream review series used by build.sh:
+https://patchew.org/linux/cover.1788360629.git.mauriziocasciano7@gmail.com/
+
+Series: [PATCH v7 00/16] media: Add Yoga Book camera support
+Posted: 2026-09-02
+Cover Message-ID: cover.1788360629.git.mauriziocasciano7@gmail.com
+First patch Message-ID: 517c4f11075debaaa3eebc4e8bed574ac832565c.1788360629.git.mauriziocasciano7@gmail.com
+Last patch Message-ID: bbd81ef43dfb8ad92572cdfb51ab2781e9a4cd02.1788360629.git.mauriziocasciano7@gmail.com
+
+build.sh downloads that exact Patchew mbox and refuses to continue unless it contains
+exactly the expected 16 v7 patch subjects plus the pinned cover/first/last Message-IDs.
+Each decoded patch is first checked with `git apply --check` against the exact verified
+Linux 7.2.4 source subset. No fuzz/3-way invented backport is used.
+
+For an OOT build, only the 12 code/header paths needed by the modules are applied.
+MAINTAINERS and the in-tree Kconfig/Makefile registration hunks are intentionally ignored;
+external Kbuild files explicitly build the replacement modules.
+
+Local hardware-variant delta:
+patches/0001-yb1-x91f-dmi.patch adds an explicit `Lenovo YB1-X91F` DMI entry using
+the same OVTI2740 two-lane override as upstream's X91L entry. The X91L entry is retained.
